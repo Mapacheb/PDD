@@ -26,72 +26,106 @@ if not os.path.exists('ai.p2p'):
 
 print(Fore.BLUE + '''
 |---------------------------------------------------------------------------------|
- Changelog v1.1:                                                                 
- Subdirectories            8888888b.  8888888b.  8888888b.                       
- New Formats:              888   Y88b 888  "Y88b 888  "Y88b                      
-  • MP4, WMV, ZIP,         888    888 888    888 888    888                      
-    JPG, PDF, SH           888   d88P 888    888 888    888                      
-    BAT+                   8888888P"  888    888 888    888                      
- Optimized Code            888        888    888 888    888                      
+ Changelog v1.2:                                                                 
+ • Error's Logs            8888888b.  8888888b.  8888888b.                       
+ • Requirements.txt        888   Y88b 888  "Y88b 888  "Y88b                      
+                           888    888 888    888 888    888                      
+                           888   d88P 888    888 888    888                      
+                           8888888P"  888    888 888    888                      
+                           888        888    888 888    888                      
                            888        888  .d88P 888  .d88P                      
                            888        8888888P"  8888888P"                       
                            Python     Directory  Downloader                      
                                                                                  
-''' + Fore.WHITE + '''                      [PDD - Dedicated to elhacker.info/Cursos/]                 
-                                 Creator: mapacheb                               
-'''+ Fore.CYAN +'''                                                                    Version 1.1 
+''' + Fore.WHITE + '''                      [PDD - Dedicated to elhacker.info/Cursos/]                  
+                                 Creator: mapacheb                                
+'''+ Fore.CYAN +'''                                                                    Version 1.2 
 ''' + Fore.BLUE + ''' 
 |---------------------------------------------------------------------------------|
 ''')
 
 base_url = input("[PDD]: ")
 
+def log_error(category, error_type, error_message):
+    with open('errors.txt', 'a') as error_file:
+        error_file.write(f"[ERROR PDD] CATEGORY {category}: {error_type} - {error_message}\n")
+
 def download_file(url, folder):
     if not os.path.exists(folder):
         os.makedirs(folder)
     filename = os.path.join(folder, url.split("/")[-1])
     
+    if len(filename) > 260:
+        log_error(6, "Path Too Long", f"The path for the file {filename} is too long.")
+        print(Fore.RED + f"[PDD]: The path for the file  {filename} is too long., will not be downloaded.")
+        return
+
     if os.path.exists(filename):
         print(f'[PDD]: {filename} Already Exist, Skipping download...')
         return
 
-    response = requests.head(url)
-    total_size = int(response.headers.get('content-length', 0))
+    try:
+        response = requests.head(url)
+        total_size = int(response.headers.get('content-length', 0))
+    except requests.ConnectionError as e:
+        log_error(1, "Connection", str(e))
+        return
+    except Exception as e:
+        log_error(1, "General Error", str(e))
+        return
 
-    with requests.get(url, stream=True) as r, open(filename, 'wb') as f:
-        downloaded_size = 0
-        chunk_size = 8192
-        total_chunks = total_size // chunk_size + (total_size % chunk_size > 0)
+    try:
+        with requests.get(url, stream=True) as r, open(filename, 'wb') as f:
+            downloaded_size = 0
+            chunk_size = 8192
+            total_chunks = total_size // chunk_size + (total_size % chunk_size > 0)
 
-        print(Fore.GREEN + f"Downloading: {filename.split('/')[-1]}")
-        for _ in range(total_chunks):
-            chunk = r.raw.read(chunk_size)
-            if not chunk:
-                break
-            f.write(chunk)
-            downloaded_size += len(chunk)
+            print(Fore.GREEN + f"Downloading: {filename.split('/')[-1]}")
+            for _ in range(total_chunks):
+                chunk = r.raw.read(chunk_size)
+                if not chunk:
+                    break
+                f.write(chunk)
+                downloaded_size += len(chunk)
 
-            percent = (downloaded_size / total_size) * 100
-            bar_length = 10
-            block = int(round(bar_length * percent / 100))
-            progress_bar = f"[{'=' * block}{' ' * (bar_length - block)}] {percent:.2f}%"
-            print(Fore.YELLOW + f"\r{progress_bar}", end='')
+                percent = (downloaded_size / total_size) * 100
+                bar_length = 10
+                block = int(round(bar_length * percent / 100))
+                progress_bar = f"[{'=' * block}{' ' * (bar_length - block)}] {percent:.2f}%"
+                print(Fore.YELLOW + f"\r{progress_bar}", end='')
 
-        print()
+            print()
 
-    print(Fore.GREEN + f'Downloaded :)')
-    clear_screen()
+        print(Fore.GREEN + f'Downloaded :)')
+        clear_screen()
+
+    except FileNotFoundError as e:
+        log_error(3, "Directory Not Found", str(e))
+    except Exception as e:
+        log_error(4, "Download Error", str(e))
 
 def process_directory(url, parent_folder):
     try:
         response = requests.get(url)
         response.raise_for_status()
-    except requests.RequestException as e:
-        print(Fore.RED + f"[PDD]: Error getting {url}: {e}")
+    except requests.ConnectionError as e:
+        log_error(2, "Connection Error", str(e))
+        return
+    except requests.HTTPError as e:
+        log_error(2, "HTTP Error", str(e))
+        return
+    except Exception as e:
+        log_error(2, "General Error 2", str(e))
         return
 
     soup = BeautifulSoup(response.text, 'html.parser')
     decoded_folder = unquote(url.split("/")[-2])
+    
+    if decoded_folder == "Cursos":
+        print(Fore.RED + f"[PDD]: Skipping folder: {decoded_folder}")
+        print(Fore.GREEN + 'All directories processed successfully.')
+        exit()
+
     folder = os.path.join(parent_folder, decoded_folder)
 
     if not os.path.exists(folder):
@@ -109,6 +143,5 @@ def process_directory(url, parent_folder):
 
     print(Fore.GREEN + f'Finished processing directory: {folder}')
 
-
-process_directory(base_url , '.')
+process_directory(base_url, '.')
 print(Fore.GREEN + 'All directories processed successfully.')
